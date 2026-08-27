@@ -4,6 +4,7 @@ internal sealed partial class CapturePreviewPage : ContentPage
 {
     private readonly ImageContent _image;
     private readonly IContent[] _content;
+    private readonly Details _details;
 
     internal CapturePreviewPage(CaptureFile capture, Details captureDetails)
     {
@@ -27,13 +28,14 @@ internal sealed partial class CapturePreviewPage : ContentPage
                     WrapWords = true,
                 },
             ];
-        this.Details = new Details
+        this._details = new Details
         {
             Title = captureDetails.Title,
             Body = captureDetails.Body,
             Metadata = captureDetails.Metadata,
             Size = ContentSize.Small,
         };
+        this.Details = this._details;
         this.Commands =
         [
             new CommandContextItem(new OpenCaptureCommand(capture) { Name = "Open in default app" }),
@@ -53,6 +55,14 @@ internal sealed partial class CapturePreviewPage : ContentPage
     }
 
     public override IContent[] GetContent() => this._content;
+
+    internal void UpdateDetails(Details captureDetails)
+    {
+        this.Title = captureDetails.Title;
+        this._details.Title = captureDetails.Title;
+        this._details.Body = captureDetails.Body;
+        this._details.Metadata = captureDetails.Metadata;
+    }
 
     internal void SetImage(IconInfo image)
     {

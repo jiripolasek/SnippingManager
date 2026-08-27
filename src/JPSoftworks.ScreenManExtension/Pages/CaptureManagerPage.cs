@@ -17,6 +17,7 @@ internal sealed partial class CaptureManagerPage : DynamicListPage, IDisposable
     private CancellationTokenSource _itemCancellationTokenSource = new();
     private DateTimeOffset _sectionReferenceTime = DateTimeOffset.UtcNow;
     private int _cursor;
+    private bool _isRefreshing;
     private bool _isDisposed;
 
     internal CaptureManagerPage(
@@ -77,7 +78,7 @@ internal sealed partial class CaptureManagerPage : DynamicListPage, IDisposable
         IReadOnlyDictionary<string, int> sectionCounts;
         lock (this._syncRoot)
         {
-            if (this._isDisposed)
+            if (this._isDisposed || this._isRefreshing)
             {
                 return;
             }
@@ -93,35 +94,10 @@ internal sealed partial class CaptureManagerPage : DynamicListPage, IDisposable
             this._cursor += slice.Count;
         }
 
-        var items = new List<IListItem>(slice.Count + 1);
-        foreach (var capture in slice)
+        var items = this.CreateItems(slice, sectionReferenceTime, sectionCounts, previousTimestamp, cancellationToken);
+        if (items is null)
         {
-            if (cancellationToken.IsCancellationRequested)
-            {
-                return;
-            }
-
-            if (CaptureDateSection.StartsNewSection(
-                capture.ModifiedAtUtc,
-                previousTimestamp,
-                sectionReferenceTime))
-            {
-                var section = CaptureDateSection.Get(capture.ModifiedAtUtc, sectionReferenceTime);
-                items.Add(new Separator(CaptureDateSection.FormatHeader(section, sectionCounts[section])));
-            }
-
-            var item = this._itemCache.GetOrCreate(
-                capture,
-                this._metadataStore.Get(capture.FullPath),
-                this._metadataStore,
-                onDeleted: this._catalog.Remove);
-            if (item is null)
-            {
-                return;
-            }
-
-            items.Add(item);
-            previousTimestamp = capture.ModifiedAtUtc;
+            return;
         }
 
         int itemCount;
@@ -138,6 +114,48 @@ internal sealed partial class CaptureManagerPage : DynamicListPage, IDisposable
         }
 
         this.RaiseItemsChanged(itemCount);
+    }
+
+    private List<IListItem>? CreateItems(
+        List<CaptureFile> captures,
+        DateTimeOffset sectionReferenceTime,
+        IReadOnlyDictionary<string, int> sectionCounts,
+        DateTimeOffset? previousTimestamp,
+        CancellationToken cancellationToken)
+    {
+        var items = new List<IListItem>(captures.Count + 1);
+        foreach (var capture in captures)
+        {
+            if (cancellationToken.IsCancellationRequested)
+            {
+                return null;
+            }
+
+            if (CaptureDateSection.StartsNewSection(
+                capture.ModifiedAtUtc,
+                previousTimestamp,
+                sectionReferenceTime))
+            {
+                var section = CaptureDateSection.Get(capture.ModifiedAtUtc, sectionReferenceTime);
+                items.Add(new Separator(CaptureDateSection.FormatHeader(section, sectionCounts[section])));
+            }
+
+            var item = this._itemCache.GetOrCreate(
+                capture,
+                this._metadataStore.Get(capture.FullPath),
+                this._metadataStore,
+                onDeleted: this._catalog.Remove,
+                thumbnailCancellationToken: CancellationToken.None); // Cached thumbnails outlive this refresh.
+            if (item is null)
+            {
+                return null;
+            }
+
+            items.Add(item);
+            previousTimestamp = capture.ModifiedAtUtc;
+        }
+
+        return items;
     }
 
     public void Dispose()
@@ -170,10 +188,10 @@ internal sealed partial class CaptureManagerPage : DynamicListPage, IDisposable
 
     private void OnDataChanged(object? sender, EventArgs e)
     {
-        this.Refresh(this.SearchText);
+        this.Refresh(this.SearchText, preserveLoadedCaptures: true);
     }
 
-    private void Refresh(string? query)
+    private void Refresh(string? query, bool preserveLoadedCaptures = false)
     {
         if (!this._catalog.IsInitialized)
         {
@@ -197,7 +215,9 @@ internal sealed partial class CaptureManagerPage : DynamicListPage, IDisposable
         var sectionCounts = CaptureDateSection.CountSections(captures, sectionReferenceTime);
 
         var nextSource = new CancellationTokenSource();
+        var cancellationToken = nextSource.Token;
         CancellationTokenSource previousSource;
+        int captureCount;
         lock (this._syncRoot)
         {
             if (this._isDisposed)
@@ -206,30 +226,59 @@ internal sealed partial class CaptureManagerPage : DynamicListPage, IDisposable
                 return;
             }
 
+            captureCount = PageSize;
+            if (preserveLoadedCaptures)
+            {
+                var loadedPaths = this._filteredCaptures.Take(this._cursor)
+                    .Select(static capture => capture.FullPath)
+                    .ToHashSet(StringComparer.OrdinalIgnoreCase);
+                // New captures can push the previous last loaded capture past the old page boundary.
+                var lastRetainedIndex = captures.FindLastIndex(capture => loadedPaths.Contains(capture.FullPath));
+                captureCount = Math.Max(this._cursor, Math.Max(PageSize, lastRetainedIndex + 1));
+            }
+
+            captureCount = Math.Min(captureCount, captures.Count);
             previousSource = this._itemCancellationTokenSource;
             this._itemCancellationTokenSource = nextSource;
-            this._filteredCaptures = captures;
-            this._loadedItems = [];
-            this._sectionCounts = sectionCounts;
-            this._sectionReferenceTime = sectionReferenceTime;
-            this._cursor = 0;
-            this.HasMoreItems = captures.Count > 0;
+            this._isRefreshing = true;
         }
 
         previousSource.Cancel();
         previousSource.Dispose();
+        var items = this.CreateItems(
+            captures.GetRange(0, captureCount),
+            sectionReferenceTime,
+            sectionCounts,
+            previousTimestamp: null,
+            cancellationToken);
+        if (items is null)
+        {
+            return;
+        }
+
+        lock (this._syncRoot)
+        {
+            if (this._isDisposed || !ReferenceEquals(nextSource, this._itemCancellationTokenSource))
+            {
+                return;
+            }
+
+            // Publish the complete replacement at once, without exposing an empty or first-page-only list.
+            this._filteredCaptures = captures;
+            this._loadedItems = items;
+            this._sectionCounts = sectionCounts;
+            this._sectionReferenceTime = sectionReferenceTime;
+            this._cursor = captureCount;
+            this._isRefreshing = false;
+            this.HasMoreItems = captureCount < captures.Count;
+        }
+
         this.IsLoading = false;
         this.EmptyContent = captures.Count == 0
             ? CreateEmptyContent(string.IsNullOrWhiteSpace(query))
             : null;
 
-        if (captures.Count == 0)
-        {
-            this.RaiseItemsChanged(0);
-            return;
-        }
-
-        this.LoadMore();
+        this.RaiseItemsChanged(items.Count);
     }
 
     private static CommandItem CreateLoadingContent()

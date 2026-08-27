@@ -9,7 +9,7 @@ namespace JPSoftworks.ScreenManExtension.UnitTests;
 public sealed class CaptureListItemCacheTests
 {
     [TestMethod]
-    public void CacheReusesUnchangedItemsAndReplacesChangedMetadata()
+    public void CacheUpdatesMetadataWithoutReplacingTheItemOrPreview()
     {
         var root = CreateTemporaryDirectory();
         try
@@ -31,14 +31,40 @@ public sealed class CaptureListItemCacheTests
                 new CaptureMetadata(null, []),
                 store,
                 thumbnailCancellationToken: cancellation.Token);
-            var replaced = cache.GetOrCreate(
+            Assert.IsNotNull(original);
+            var preview = original.MoreCommands.OfType<CommandContextItem>()
+                .Select(context => context.Command).OfType<CapturePreviewPage>().Single();
+            var icon = original.Icon;
+            var dataPackage = original.DataPackage;
+            store.Update(capturePath, "Favorite capture", ["work"]);
+            store.ToggleFavorite(capturePath);
+            var updated = cache.GetOrCreate(
                 capture,
-                new CaptureMetadata("Favorite capture", [], true),
+                store.Get(capturePath),
                 store,
                 thumbnailCancellationToken: cancellation.Token);
 
-            Assert.IsNotNull(original);
             Assert.AreSame(original, reused);
+            Assert.AreSame(original, updated);
+            Assert.AreSame(icon, original.Icon);
+            Assert.AreSame(dataPackage, original.DataPackage);
+            Assert.AreEqual("Favorite capture", original.Title);
+            Assert.AreEqual(original.Title, original.TextToSuggest);
+            Assert.AreEqual(original.Title, preview.Title);
+            Assert.AreEqual(original.Details!.Body, preview.Details!.Body);
+            Assert.AreSame(original.Details.Metadata, preview.Details.Metadata);
+            var commands = original.MoreCommands.OfType<CommandContextItem>().Select(context => context.Command).ToArray();
+            Assert.AreSame(preview, commands.OfType<CapturePreviewPage>().Single());
+            Assert.AreEqual("Remove from favorites", commands.OfType<ToggleFavoriteCommand>().Single().Name);
+            var form = Assert.IsInstanceOfType<FormContent>(commands.OfType<EditCaptureMetadataPage>().Single().GetContent().Single());
+            StringAssert.Contains(form.TemplateJson, "Favorite capture");
+            StringAssert.Contains(form.TemplateJson, "work");
+
+            var replaced = cache.GetOrCreate(
+                capture with { SizeInBytes = 456 },
+                store.Get(capturePath),
+                store,
+                thumbnailCancellationToken: cancellation.Token);
             Assert.AreNotSame(original, replaced);
             Assert.AreEqual(1, cache.Count);
         }

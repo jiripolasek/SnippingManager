@@ -31,7 +31,9 @@ CaptureListItem -- thumbnail, lazy drag payload, open/copy/favorite/reveal/edit 
 CaptureMetadataStore -- local favorite/label/tag JSON
 ```
 
-Discovery and file I/O run outside the Command Palette UI thread. The page reads an immutable catalog snapshot, filters it in memory, and creates items in pages of 40. Thumbnail work is independently limited to four concurrent requests. Cached list items are reused while their capture file and metadata remain unchanged, allowing Command Palette to retain its existing host view models across refreshes.
+Discovery and file I/O run outside the Command Palette UI thread. The page reads an immutable catalog snapshot, filters it in memory, and creates items in pages of 40. Background updates retain the loaded range, extending it when new captures push previously loaded captures farther down the list. Search and filter changes reset paging. Each refresh publishes a complete replacement without exposing an intermediate empty list.
+
+Thumbnail work is independently limited to four concurrent requests. Cached list items are reused while their capture file remains unchanged. Metadata edits update the existing card, details, preview, and commands without replacing the card or reloading its thumbnail, allowing Command Palette to retain its existing host view models and selection. The host owns the actual selection and scroll position; captures removed from the results can no longer retain selection.
 
 ## Key boundaries
 

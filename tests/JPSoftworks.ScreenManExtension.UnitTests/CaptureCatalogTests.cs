@@ -229,6 +229,187 @@ public sealed class CaptureCatalogTests
         }
     }
 
+    [TestMethod]
+    public async Task MetadataEditsPreserveLoadedCapturesAndPublishOneCompleteRefresh()
+    {
+        var root = Path.Combine(Path.GetTempPath(), $"screenman-browsing-tests-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(root);
+        try
+        {
+            var captures = CreateCaptures(root, 95);
+            using var catalog = new CaptureCatalog(new TestCaptureSource((_, _) => captures));
+            await WaitUntilAsync(catalog, () => catalog.IsInitialized);
+            var store = new CaptureMetadataStore(Path.Combine(root, "metadata.json"));
+            using var page = new CaptureManagerPage(catalog, store, new SettingsManager(Path.Combine(root, "settings.json")));
+            page.LoadMore();
+            var originalItems = page.GetItems().OfType<CaptureListItem>().ToArray();
+            Assert.HasCount(80, originalItems);
+            var observedCounts = new List<int>();
+            page.ItemsChanged += (_, _) => observedCounts.Add(page.GetItems().OfType<CaptureListItem>().Count());
+            var countDuringMetadataUpdate = -1;
+            originalItems[^1].PropChanged += (_, args) =>
+            {
+                if (args.PropertyName == nameof(CaptureListItem.Title))
+                {
+                    countDuringMetadataUpdate = page.GetItems().OfType<CaptureListItem>().Count();
+                }
+            };
+
+            store.Update(captures[79].FullPath, "Updated capture", ["work"]);
+            store.ToggleFavorite(captures[79].FullPath);
+
+            CollectionAssert.AreEqual(originalItems, page.GetItems().OfType<CaptureListItem>().ToArray());
+            Assert.HasCount(2, observedCounts);
+            Assert.IsTrue(observedCounts.All(count => count == 80));
+            Assert.AreEqual(80, countDuringMetadataUpdate);
+            Assert.AreEqual("Updated capture", originalItems[^1].Title);
+            Assert.IsTrue(page.HasMoreItems);
+
+            page.LoadMore();
+
+            Assert.HasCount(95, page.GetItems().OfType<CaptureListItem>().ToArray());
+            Assert.IsFalse(page.HasMoreItems);
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
+    [TestMethod]
+    public async Task NewCapturesRetainThePreviousLoadedBoundaryAndContinuePagingWithoutDuplicates()
+    {
+        var root = Path.Combine(Path.GetTempPath(), $"screenman-browsing-tests-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(root);
+        try
+        {
+            var originalCaptures = CreateCaptures(root, 95);
+            var snapshot = originalCaptures;
+            var source = new TestCaptureSource((_, _) => snapshot);
+            using var catalog = new CaptureCatalog(source);
+            await WaitUntilAsync(catalog, () => catalog.IsInitialized);
+            using var page = new CaptureManagerPage(
+                catalog,
+                new CaptureMetadataStore(Path.Combine(root, "metadata.json")),
+                new SettingsManager(Path.Combine(root, "settings.json")));
+            page.LoadMore();
+            var originalItems = page.GetItems().OfType<CaptureListItem>().ToArray();
+            var newCaptures = CreateCaptures(Path.Combine(root, "new"), 41)
+                .Select(capture => capture with { ModifiedAtUtc = capture.ModifiedAtUtc.AddDays(1) }).ToArray();
+            snapshot = [.. newCaptures, .. originalCaptures];
+
+            await WaitUntilAsync(
+                catalog,
+                () => page.GetItems().OfType<CaptureListItem>().Count() == 121,
+                source.NotifyChanged);
+
+            var refreshedItems = page.GetItems().OfType<CaptureListItem>().ToArray();
+            CollectionAssert.AreEqual(originalItems, refreshedItems.Skip(41).ToArray());
+            Assert.IsTrue(page.HasMoreItems);
+
+            page.LoadMore();
+
+            var allItems = page.GetItems().OfType<CaptureListItem>().ToArray();
+            Assert.HasCount(snapshot.Length, allItems);
+            Assert.AreEqual(allItems.Length, allItems.Distinct().Count());
+            CollectionAssert.AreEqual(refreshedItems, allItems.Take(refreshedItems.Length).ToArray());
+            Assert.IsFalse(page.HasMoreItems);
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
+    [TestMethod]
+    public async Task RefreshClampsLoadedDepthAndRemovesCapturesThatNoLongerMatch()
+    {
+        var root = Path.Combine(Path.GetTempPath(), $"screenman-browsing-tests-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(root);
+        try
+        {
+            var captures = CreateCaptures(root, 95);
+            var snapshot = captures;
+            var source = new TestCaptureSource((_, _) => snapshot);
+            using var catalog = new CaptureCatalog(source);
+            await WaitUntilAsync(catalog, () => catalog.IsInitialized);
+            var store = new CaptureMetadataStore(Path.Combine(root, "metadata.json"));
+            using var page = new CaptureManagerPage(catalog, store, new SettingsManager(Path.Combine(root, "settings.json")));
+            page.Filters!.CurrentFilterId = CaptureFilters.UnorganizedId;
+            page.LoadMore();
+            var originalItems = page.GetItems().OfType<CaptureListItem>().ToArray();
+
+            store.Update(captures[79].FullPath, "Organized", []);
+
+            var filteredItems = page.GetItems().OfType<CaptureListItem>().ToArray();
+            Assert.HasCount(80, filteredItems);
+            CollectionAssert.AreEqual(originalItems.Take(79).ToArray(), filteredItems.Take(79).ToArray());
+            Assert.IsFalse(filteredItems.Contains(originalItems[^1]));
+
+            snapshot = captures.Take(10).ToArray();
+            await WaitUntilAsync(catalog, () => page.GetItems().OfType<CaptureListItem>().Count() == 10, source.NotifyChanged);
+
+            CollectionAssert.AreEqual(originalItems.Take(10).ToArray(), page.GetItems().OfType<CaptureListItem>().ToArray());
+            Assert.IsFalse(page.HasMoreItems);
+
+            snapshot = [];
+            await WaitUntilAsync(catalog, () => page.GetItems().Length == 0, source.NotifyChanged);
+
+            Assert.IsNotNull(page.EmptyContent);
+            Assert.IsFalse(page.HasMoreItems);
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
+    [TestMethod]
+    public async Task SearchAndFilterChangesResetLoadedDepth()
+    {
+        var root = Path.Combine(Path.GetTempPath(), $"screenman-browsing-tests-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(root);
+        try
+        {
+            var captures = CreateCaptures(root, 95);
+            using var catalog = new CaptureCatalog(new TestCaptureSource((_, _) => captures));
+            await WaitUntilAsync(catalog, () => catalog.IsInitialized);
+            using var page = new CaptureManagerPage(
+                catalog,
+                new CaptureMetadataStore(Path.Combine(root, "metadata.json")),
+                new SettingsManager(Path.Combine(root, "settings.json")));
+            page.LoadMore();
+            Assert.HasCount(80, page.GetItems().OfType<CaptureListItem>().ToArray());
+
+            page.SearchText = "capture";
+
+            Assert.HasCount(40, page.GetItems().OfType<CaptureListItem>().ToArray());
+            page.LoadMore();
+            Assert.HasCount(80, page.GetItems().OfType<CaptureListItem>().ToArray());
+
+            page.Filters!.CurrentFilterId = CaptureFilters.ScreenshotsId;
+
+            Assert.HasCount(40, page.GetItems().OfType<CaptureListItem>().ToArray());
+            Assert.IsTrue(page.HasMoreItems);
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
+    private static CaptureFile[] CreateCaptures(string root, int count)
+    {
+        var timestamp = DateTimeOffset.UtcNow;
+        return Enumerable.Range(0, count)
+            .Select(index => new CaptureFile(
+                Path.Combine(root, $"capture-{index:D3}.png"),
+                timestamp.AddMinutes(-index),
+                3,
+                CaptureMediaKind.Image))
+            .ToArray();
+    }
+
     private static async Task WaitUntilAsync(CaptureCatalog catalog, Func<bool> condition, Action? trigger = null)
     {
         var changed = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);

@@ -8,6 +8,8 @@ internal sealed partial class CaptureListItem : ListItem, IDisposable
     private readonly Details _details;
     private readonly OpenCaptureCommand _externalOpenCommand;
     private readonly CapturePreviewPage _previewPage;
+    private readonly CommandContextItem _favoriteContextItem;
+    private readonly CommandContextItem _editMetadataContextItem;
     private readonly IContextItem[] _captureCommands;
     private readonly CancellationTokenSource _thumbnailCancellationTokenSource;
     private int _isDisposed;
@@ -35,20 +37,22 @@ internal sealed partial class CaptureListItem : ListItem, IDisposable
         this.Tags = CreateTags(capture, metadata);
         this.DataPackage = CaptureDataPackageFactory.Create(capture);
 
+        this._favoriteContextItem = new(new ToggleFavoriteCommand(capture, metadataStore, metadata.IsFavorite))
+        {
+            RequestedShortcut = Chords.ToggleFavorite,
+        };
+        this._editMetadataContextItem = new(new EditCaptureMetadataPage(capture, metadataStore))
+        {
+            RequestedShortcut = Chords.EditLabelAndTags,
+        };
         this._captureCommands =
         [
             new CommandContextItem(new CopyCaptureCommand(capture))
             {
                 RequestedShortcut = Chords.CopyCapture,
             },
-            new CommandContextItem(new ToggleFavoriteCommand(capture, metadataStore, metadata.IsFavorite))
-            {
-                RequestedShortcut = Chords.ToggleFavorite,
-            },
-            new CommandContextItem(new EditCaptureMetadataPage(capture, metadataStore))
-            {
-                RequestedShortcut = Chords.EditLabelAndTags,
-            },
+            this._favoriteContextItem,
+            this._editMetadataContextItem,
             new CommandContextItem(new ShowFileInFolderCommand(capture.FullPath))
             {
                 RequestedShortcut = Chords.ShowInFolder,
@@ -64,25 +68,12 @@ internal sealed partial class CaptureListItem : ListItem, IDisposable
             },
         ];
 
-        var detailTags = CreateMetadataTags(metadata);
         this._details = new Details
         {
             Title = this.Title,
             HeroImage = fallbackIcon,
             Body = CreateDetailsBody(capture, metadata, localTimestamp),
-            Metadata = detailTags.Length == 0
-                ? []
-                :
-                [
-                    new DetailsElement
-                    {
-                        Key = "Tags",
-                        Data = new DetailsTags
-                        {
-                            Tags = detailTags,
-                        },
-                    },
-                ],
+            Metadata = CreateDetailsMetadata(metadata),
             Size = ContentSize.Medium,
         };
         this.Details = this._details;
@@ -109,6 +100,19 @@ internal sealed partial class CaptureListItem : ListItem, IDisposable
             .. this._captureCommands,
             new CommandContextItem(openInPreview ? this._externalOpenCommand : this._previewPage),
         ];
+    }
+
+    internal void UpdateMetadata(CaptureFile capture, CaptureMetadata metadata, CaptureMetadataStore metadataStore)
+    {
+        this.Title = string.IsNullOrWhiteSpace(metadata.Label) ? capture.FileName : metadata.Label;
+        this.TextToSuggest = this.Title;
+        this.Tags = CreateTags(capture, metadata);
+        this._details.Title = this.Title;
+        this._details.Body = CreateDetailsBody(capture, metadata, capture.ModifiedAtUtc.ToLocalTime());
+        this._details.Metadata = CreateDetailsMetadata(metadata);
+        this._previewPage.UpdateDetails(this._details);
+        this._favoriteContextItem.Command = new ToggleFavoriteCommand(capture, metadataStore, metadata.IsFavorite);
+        this._editMetadataContextItem.Command = new EditCaptureMetadataPage(capture, metadataStore);
     }
 
     public void Dispose()
@@ -147,6 +151,14 @@ internal sealed partial class CaptureListItem : ListItem, IDisposable
 
         tags.AddRange(metadata.Tags.Select(static tag => (ITag)new Tag(tag)));
         return [.. tags];
+    }
+
+    private static IDetailsElement[] CreateDetailsMetadata(CaptureMetadata metadata)
+    {
+        var tags = CreateMetadataTags(metadata);
+        return tags.Length == 0
+            ? []
+            : [new DetailsElement { Key = "Tags", Data = new DetailsTags { Tags = tags } }];
     }
 
     private static string CreateDetailsBody(

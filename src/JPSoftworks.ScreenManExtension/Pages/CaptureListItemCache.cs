@@ -58,8 +58,15 @@ internal sealed partial class CaptureListItemCache : IDisposable
                 return null;
             }
 
-            if (this._items.TryGetValue(capture.FullPath, out var existing) && existing.Matches(capture, metadata))
+            if (this._items.TryGetValue(capture.FullPath, out var existing) && existing.MatchesCapture(capture))
             {
+                if (!existing.MatchesMetadata(metadata))
+                {
+                    // Command Palette retains selection by item identity, including across metadata edits.
+                    existing.Item.UpdateMetadata(capture, metadata, metadataStore);
+                    this._items[capture.FullPath] = existing with { Metadata = metadata };
+                }
+
                 return existing.Item;
             }
 
@@ -129,13 +136,17 @@ internal sealed partial class CaptureListItemCache : IDisposable
         CaptureMetadata Metadata,
         CaptureListItem Item)
     {
-        internal bool Matches(CaptureFile capture, CaptureMetadata metadata)
+        internal bool MatchesCapture(CaptureFile capture)
         {
             return StringComparer.OrdinalIgnoreCase.Equals(this.Capture.FullPath, capture.FullPath)
                 && this.Capture.ModifiedAtUtc == capture.ModifiedAtUtc
                 && this.Capture.SizeInBytes == capture.SizeInBytes
-                && this.Capture.Kind == capture.Kind
-                && StringComparer.Ordinal.Equals(this.Metadata.Label, metadata.Label)
+                && this.Capture.Kind == capture.Kind;
+        }
+
+        internal bool MatchesMetadata(CaptureMetadata metadata)
+        {
+            return StringComparer.Ordinal.Equals(this.Metadata.Label, metadata.Label)
                 && this.Metadata.IsFavorite == metadata.IsFavorite
                 && this.Metadata.Tags.SequenceEqual(metadata.Tags, StringComparer.Ordinal);
         }
