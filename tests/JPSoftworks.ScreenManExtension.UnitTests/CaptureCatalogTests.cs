@@ -196,12 +196,22 @@ public sealed class CaptureCatalogTests
             }
 
             var form = (SettingsForm)settings.Settings.ToContent().Single();
-            form.SubmitForm("""{"jpsoftworks.screenman.Behavior.OpenInPreview":"true"}""", string.Empty);
-
-            CollectionAssert.AreEqual(items, page.GetItems().OfType<CaptureListItem>().ToArray());
-            foreach (var item in items)
+            foreach (var choice in new[] { "true", "false", "default", "true" })
             {
-                Assert.IsInstanceOfType<CapturePreviewPage>(item.Command);
+                form.SubmitForm($$"""{"jpsoftworks.screenman.Behavior.OpenInPreview":"{{choice}}"}""", string.Empty);
+
+                CollectionAssert.AreEqual(items, page.GetItems().OfType<CaptureListItem>().ToArray());
+                foreach (var item in items)
+                {
+                    if (choice == "true")
+                    {
+                        Assert.IsInstanceOfType<CapturePreviewPage>(item.Command);
+                    }
+                    else
+                    {
+                        Assert.IsInstanceOfType<OpenCaptureCommand>(item.Command);
+                    }
+                }
             }
 
             var reloadedSettings = new SettingsManager(settingsPath);

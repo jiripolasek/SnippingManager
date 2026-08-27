@@ -35,11 +35,19 @@ internal sealed class SettingsManager : JsonSettingsManager, ICaptureSettings
         true);
 
     [SuppressMessage("Maintainability", "CA1507:Use nameof to express symbol names", Justification = "Persisted settings keys must remain stable.")]
-    private readonly ToggleSetting _openInPreview = new(
+    private readonly ChoiceSetSetting _openInPreview = new(
         Namespaced("Behavior.OpenInPreview"),
-        "Open captures in Command Palette",
-        "Use a preview page instead of the default app. Recordings show a still preview; open the default app for playback.",
-        false);
+        "Open captures",
+        "Choose where captures open. Recordings show a still preview in Command Palette; use the default app for playback.",
+        [
+            new("Default (Open in default app)", "default"),
+            // Keep the existing toggle values so saved preferences retain their meaning.
+            new("Open in default app", "false"),
+            new("Preview in Command Palette", "true"),
+        ])
+    {
+        IgnoreUnknownValue = true,
+    };
 
     internal SettingsManager(string? filePath = null)
     {
@@ -73,7 +81,12 @@ internal sealed class SettingsManager : JsonSettingsManager, ICaptureSettings
 
     internal bool ShowDetailsAutomatically => this._showDetailsAutomatically.Value;
 
-    internal bool OpenInPreview => this._openInPreview.Value;
+    internal bool OpenInPreview => this._openInPreview.Value switch
+    {
+        "true" => true,
+        "false" => false,
+        _ => false, // Default currently opens in the default app.
+    };
 
     private void OnSettingsChanged(object sender, Settings args)
     {
