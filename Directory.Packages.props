@@ -1,0 +1,19 @@
+<Project>
+  <PropertyGroup>
+    <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
+    <ToolkitVersion>0.9.3-preview.1</ToolkitVersion>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageVersion Include="JPSoftworks.CommandPalette.Extensions.Toolkit" Version="$(ToolkitVersion)" />
+    <PackageVersion Include="JPSoftworks.CommandPalette.Extensions.Toolkit.Logging.MicrosoftExtensions" Version="$(ToolkitVersion)" />
+    <PackageVersion Include="Microsoft.CommandPalette.Extensions" Version="0.12.260812002" />
+    <PackageVersion Include="Microsoft.Extensions.Logging" Version="10.0.10" />
+    <PackageVersion Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.10" />
+    <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="18.8.1" />
+    <PackageVersion Include="Microsoft.Windows.CsWinRT" Version="2.3.1" />
+    <PackageVersion Include="Microsoft.Windows.SDK.BuildTools" Version="10.0.28000.2526" />
+    <PackageVersion Include="MSTest.TestAdapter" Version="4.3.2" />
+    <PackageVersion Include="MSTest.TestFramework" Version="4.3.2" />
+    <PackageVersion Include="System.Drawing.Common" Version="10.0.10" />
+  </ItemGroup>
+</Project>

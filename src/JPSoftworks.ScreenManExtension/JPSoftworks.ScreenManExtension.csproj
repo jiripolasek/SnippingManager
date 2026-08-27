@@ -1,0 +1,73 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <PackageManifestPath>$(CmdPalPackageManifest)</PackageManifestPath>
+
+    <RuntimeIdentifiers>$(CmdPalRuntimeIdentifiers)</RuntimeIdentifiers>
+    <RuntimeIdentifier Condition="'$(RuntimeIdentifier)' == '' and '$(Platform)' == 'x64'">win-x64</RuntimeIdentifier>
+    <RuntimeIdentifier Condition="'$(RuntimeIdentifier)' == '' and '$(Platform)' == 'ARM64'">win-arm64</RuntimeIdentifier>
+    <PublishProfile Condition="'$(_IsPublishing)' == 'true'">win-$(Platform).pubxml</PublishProfile>
+    <DebugType>embedded</DebugType>
+
+    <AssemblyName>$(CmdPalExtensionAssemblyName)</AssemblyName>
+    <Company>Jiri Polasek</Company>
+    <Copyright>(c) Jiri Polasek</Copyright>
+    <NeutralLanguage>$(CmdPalDefaultLanguage)</NeutralLanguage>
+    <Product>Snipping Manager</Product>
+    <AssemblyTitle>Snipping Manager</AssemblyTitle>
+  </PropertyGroup>
+  <ItemGroup>
+    <Content Include="app.ico" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Update="Assets\**\*">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+    </None>
+    <Manifest Include="$(ApplicationManifest)" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="JPSoftworks.CommandPalette.Extensions.Toolkit" />
+    <PackageReference Include="JPSoftworks.CommandPalette.Extensions.Toolkit.Logging.MicrosoftExtensions" />
+    <PackageReference Include="Microsoft.CommandPalette.Extensions" />
+    <PackageReference Include="Microsoft.Extensions.Logging" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
+    <PackageReference Include="Microsoft.Windows.CsWinRT" />
+    <PackageReference Include="System.Drawing.Common" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <PublishAot Condition="'$(PublishAot)' == '' and '$(Configuration)' == 'Release'">true</PublishAot>
+    <PublishTrimmed Condition="'$(PublishTrimmed)' == '' and '$(Configuration)' == 'Release'">true</PublishTrimmed>
+    <PublishAot Condition="'$(PublishAot)' == ''">false</PublishAot>
+    <PublishTrimmed Condition="'$(PublishTrimmed)' == ''">false</PublishTrimmed>
+    <TrimMode>full</TrimMode>
+    <PublishSingleFile>false</PublishSingleFile>
+    <PublishReadyToRun>false</PublishReadyToRun>
+    <SelfContained>true</SelfContained>
+    <IsAotCompatible>true</IsAotCompatible>
+    <CsWinRTAotOptimizerEnabled>true</CsWinRTAotOptimizerEnabled>
+    <CsWinRTAotWarningLevel>2</CsWinRTAotWarningLevel>
+    <TrimmerSingleWarn>false</TrimmerSingleWarn>
+    <WarningsNotAsErrors>$(WarningsNotAsErrors);IL2081</WarningsNotAsErrors>
+    <BuiltInComInteropSupport>false</BuiltInComInteropSupport>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <ApplicationIcon>app.ico</ApplicationIcon>
+  </PropertyGroup>
+
+  <Target Name="UpdateVersionFromPackageManifest" BeforeTargets="BeforeBuild">
+    <XmlPeek XmlInputPath="$(PackageManifestPath)" Query="/appx:Package/appx:Identity/@Version" Namespaces="&lt;Namespace Prefix='appx' Uri='http://schemas.microsoft.com/appx/manifest/foundation/windows10'/&gt;">
+      <Output TaskParameter="Result" PropertyName="appxManifestVersion" />
+    </XmlPeek>
+    <Message Importance="High" Text="Set project version to match Appx manifest: $(appxManifestVersion)" />
+    <PropertyGroup><Version>$(appxManifestVersion)</Version></PropertyGroup>
+  </Target>
+
+  <Target Name="KillRunningExecutable" BeforeTargets="Build;Deploy;Publish">
+    <PropertyGroup><ExecutableName>$(AssemblyName).exe</ExecutableName></PropertyGroup>
+    <Exec Command="taskkill /F /IM $(ExecutableName)" ContinueOnError="true" IgnoreExitCode="true" />
+  </Target>
+</Project>

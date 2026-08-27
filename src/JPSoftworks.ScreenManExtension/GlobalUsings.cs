@@ -1,0 +1,9 @@
+global using Microsoft.CommandPalette.Extensions;
+global using Microsoft.CommandPalette.Extensions.Toolkit;
+global using JPSoftworks.CommandPalette.Extensions.Toolkit.Logging;
+global using Microsoft.Extensions.Logging;
+global using JPSoftworks.ScreenManExtension.Commands;
+global using JPSoftworks.ScreenManExtension.Helpers;
+global using JPSoftworks.ScreenManExtension.Model;
+global using JPSoftworks.ScreenManExtension.Pages;
+global using JPSoftworks.ScreenManExtension.Sources;

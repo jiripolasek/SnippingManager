@@ -1,0 +1,25 @@
+<Project>
+  <PropertyGroup>
+    <CmdPalPackagingTemplateVersion>5</CmdPalPackagingTemplateVersion>
+    <CmdPalRepositoryRoot>$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)..\'))</CmdPalRepositoryRoot>
+
+    <CmdPalExtensionProject>$(CmdPalRepositoryRoot)src\JPSoftworks.ScreenManExtension\JPSoftworks.ScreenManExtension.csproj</CmdPalExtensionProject>
+    <CmdPalExtensionProjectReference>..\JPSoftworks.ScreenManExtension\JPSoftworks.ScreenManExtension.csproj</CmdPalExtensionProjectReference>
+    <CmdPalExtensionAssemblyName>JPSoftworks.ScreenManExtension</CmdPalExtensionAssemblyName>
+
+    <CmdPalPackageProject>$(CmdPalRepositoryRoot)src\JPSoftworks.ScreenManExtension.Package\JPSoftworks.ScreenManExtension.Package.wapproj</CmdPalPackageProject>
+    <CmdPalPackageManifest>$(CmdPalRepositoryRoot)src\JPSoftworks.ScreenManExtension.Package\Package.appxmanifest</CmdPalPackageManifest>
+    <CmdPalPackageExecutable>JPSoftworks.ScreenManExtension\JPSoftworks.ScreenManExtension.exe</CmdPalPackageExecutable>
+    <CmdPalPackageProjectGuid>71963f19-1c25-42d9-830b-f7166a60d48a</CmdPalPackageProjectGuid>
+
+    <CmdPalTargetFramework>net10.0-windows10.0.26100.0</CmdPalTargetFramework>
+    <CmdPalTargetPlatformVersion>10.0.26100.0</CmdPalTargetPlatformVersion>
+    <CmdPalTargetPlatformMinVersion>10.0.19041.0</CmdPalTargetPlatformMinVersion>
+    <CmdPalRuntimeIdentifiers>win-x64;win-arm64</CmdPalRuntimeIdentifiers>
+    <CmdPalDefaultLanguage>en-US</CmdPalDefaultLanguage>
+
+    <CmdPalArtifactsPath>$(CmdPalRepositoryRoot)artifacts\</CmdPalArtifactsPath>
+    <CmdPalSupportsNativeAot>true</CmdPalSupportsNativeAot>
+    <CmdPalWindowsSdkBuildToolsVersion>10.0.28000.2526</CmdPalWindowsSdkBuildToolsVersion>
+  </PropertyGroup>
+</Project>
