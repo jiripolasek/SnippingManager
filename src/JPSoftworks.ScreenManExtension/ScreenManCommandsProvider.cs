@@ -42,6 +42,31 @@ public sealed partial class ScreenManCommandsProvider : CommandProvider
                 Subtitle = "Put the newest screenshot or recording on the clipboard",
                 Icon = Icons.Copy,
             },
+            new CommandItem(new OpenLatestCaptureCommand(this._catalog))
+            {
+                Subtitle = "Open the newest screenshot or recording in your default app",
+                Icon = Icons.Main,
+            },
+            new CommandItem(new CopyLatestCaptureCommand(this._catalog, CaptureMediaKind.Image))
+            {
+                Subtitle = "Copy the newest screenshot as an image and file",
+                Icon = Icons.Copy,
+            },
+            new CommandItem(new CopyLatestCaptureCommand(this._catalog, CaptureMediaKind.Video))
+            {
+                Subtitle = "Copy the newest screen recording as a file",
+                Icon = Icons.Copy,
+            },
+            new CommandItem(new OpenLatestCaptureCommand(this._catalog, CaptureMediaKind.Image))
+            {
+                Subtitle = "Open the newest screenshot in your default app",
+                Icon = Icons.Picture,
+            },
+            new CommandItem(new OpenLatestCaptureCommand(this._catalog, CaptureMediaKind.Video))
+            {
+                Subtitle = "Open the newest screen recording in your default app",
+                Icon = Icons.Video,
+            },
         ];
     }
 

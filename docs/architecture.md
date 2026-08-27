@@ -16,7 +16,7 @@ CaptureCatalog -- debounced background refresh and recency cache
         +----------------------+
         |                      |
         v                      v
-CaptureManagerPage      Copy latest capture
+CaptureManagerPage      Copy/open latest commands
         |
         v
 search + organization filters + paging + counted date sections
@@ -42,6 +42,12 @@ Thumbnail work is independently limited to four concurrent requests. Cached list
 - `CaptureCatalog` debounces watcher bursts, preserves a recency-sorted snapshot, and isolates the page from disk enumeration.
 - `CaptureMetadataStore` persists favorites, labels, and tags without writing into capture files.
 - `CaptureSearch` is the single matching point for filenames, paths, favorites, labels, tags, type terms, and date terms.
+
+## Quick commands
+
+The copy and open quick commands resolve the latest matching `CaptureMediaKind` from the catalog when invoked. The mixed copy and open commands omit the kind filter. Selection follows the catalog's newest-modified-first order, uses no additional filesystem scan, and is independent of gallery search and filters. Commands report loading separately from an empty matching result and never fall back to the other media kind.
+
+Each action/type combination has a stable, distinct command ID. Copy variants reuse `CopyCaptureCommand` (image plus file for screenshots, file for recordings). Open variants reuse `OpenCaptureCommand` to launch the default app regardless of the gallery's preview setting. Tests substitute these final actions so selection and refresh behavior can be verified without changing the user's clipboard or launching an app.
 
 ## Metadata identity
 

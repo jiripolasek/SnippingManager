@@ -48,11 +48,11 @@ internal sealed partial class CaptureCatalog : IDisposable
         }
     }
 
-    internal bool TryGetLatest(out CaptureFile? capture)
+    internal bool TryGetLatest(out CaptureFile? capture, CaptureMediaKind? kind = null)
     {
         lock (this._syncRoot)
         {
-            capture = this._captures.Count == 0 ? null : this._captures[0];
+            capture = this._captures.FirstOrDefault(capture => kind is null || capture.Kind == kind);
             return capture is not null;
         }
     }

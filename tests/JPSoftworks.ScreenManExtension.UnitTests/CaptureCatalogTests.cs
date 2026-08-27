@@ -11,6 +11,166 @@ namespace JPSoftworks.ScreenManExtension.UnitTests;
 public sealed class CaptureCatalogTests
 {
     [TestMethod]
+    public async Task LatestLookupFiltersByKindWithoutRescanning()
+    {
+        var newest = CreateCapture() with { Kind = CaptureMediaKind.Video };
+        var screenshot = CreateCapture() with { ModifiedAtUtc = newest.ModifiedAtUtc.AddMinutes(-1) };
+        var olderRecording = CreateCapture() with
+        {
+            Kind = CaptureMediaKind.Video,
+            ModifiedAtUtc = newest.ModifiedAtUtc.AddMinutes(-2),
+        };
+        var source = new TestCaptureSource((_, _) => [newest, screenshot, olderRecording]);
+        using var catalog = new CaptureCatalog(source);
+        await WaitUntilAsync(catalog, () => catalog.IsInitialized);
+
+        Assert.IsTrue(catalog.TryGetLatest(out var latest));
+        Assert.AreSame(newest, latest);
+        Assert.IsTrue(catalog.TryGetLatest(out var latestScreenshot, CaptureMediaKind.Image));
+        Assert.AreSame(screenshot, latestScreenshot);
+        Assert.IsTrue(catalog.TryGetLatest(out var latestRecording, CaptureMediaKind.Video));
+        Assert.AreSame(newest, latestRecording);
+
+        catalog.Remove(screenshot.FullPath);
+
+        Assert.IsFalse(catalog.TryGetLatest(out latestScreenshot, CaptureMediaKind.Image));
+        Assert.IsNull(latestScreenshot);
+        Assert.IsTrue(catalog.TryGetLatest(out latestRecording, CaptureMediaKind.Video));
+        Assert.AreSame(newest, latestRecording);
+        Assert.AreEqual(1, source.ReadCount);
+    }
+
+    [TestMethod]
+    [DataRow(false, (int)CaptureMediaKind.Image)]
+    [DataRow(false, (int)CaptureMediaKind.Video)]
+    [DataRow(true, (int)CaptureMediaKind.Image)]
+    [DataRow(true, (int)CaptureMediaKind.Video)]
+    public async Task TypedQuickCommandsSelectTheCurrentMatchingCapture(bool open, int kindValue)
+    {
+        var kind = (CaptureMediaKind)kindValue;
+        var matching = CreateCapture() with { Kind = kind };
+        var otherKind = CreateCapture() with
+        {
+            Kind = kind == CaptureMediaKind.Image ? CaptureMediaKind.Video : CaptureMediaKind.Image,
+            ModifiedAtUtc = matching.ModifiedAtUtc.AddMinutes(1),
+        };
+        var nextMatching = matching with
+        {
+            FullPath = Path.Combine(Path.GetTempPath(), $"screenman-next-{Guid.NewGuid():N}.png"),
+            ModifiedAtUtc = matching.ModifiedAtUtc.AddMinutes(2),
+        };
+        var source = new TestCaptureSource((readCount, _) => readCount == 1
+            ? [otherKind, matching]
+            : [nextMatching, otherKind, matching]);
+        using var catalog = new CaptureCatalog(source);
+        CaptureFile? executedCapture = null;
+        var actionResult = CommandResult.KeepOpen();
+        CommandResult Execute(CaptureFile capture)
+        {
+            executedCapture = capture;
+            return actionResult;
+        }
+
+        InvokableCommand command = open
+            ? new OpenLatestCaptureCommand(catalog, kind, Execute)
+            : new CopyLatestCaptureCommand(catalog, kind, Execute);
+        await WaitUntilAsync(catalog, () => catalog.IsInitialized);
+
+        Assert.AreSame(actionResult, command.Invoke());
+        Assert.AreSame(matching, executedCapture);
+        await WaitUntilAsync(catalog, () => catalog.GetSnapshot().Contains(nextMatching), source.NotifyChanged);
+        Assert.AreSame(actionResult, command.Invoke());
+        Assert.AreSame(nextMatching, executedCapture);
+
+        catalog.Remove(nextMatching.FullPath);
+        Assert.AreSame(actionResult, command.Invoke());
+        Assert.AreSame(matching, executedCapture);
+        catalog.Remove(matching.FullPath);
+        executedCapture = null;
+
+        var emptyToast = Assert.IsInstanceOfType<ToastArgs>(command.Invoke().Args);
+        Assert.AreEqual(kind == CaptureMediaKind.Image
+            ? "No screenshots were found."
+            : "No screen recordings were found.", emptyToast.Message);
+        Assert.IsNull(executedCapture);
+        Assert.AreEqual(2, source.ReadCount);
+    }
+
+    [TestMethod]
+    [DataRow(false, (int)CaptureMediaKind.Image)]
+    [DataRow(false, (int)CaptureMediaKind.Video)]
+    [DataRow(true, (int)CaptureMediaKind.Image)]
+    [DataRow(true, (int)CaptureMediaKind.Video)]
+    public async Task MixedQuickCommandsSelectNewestCaptureAcrossKinds(bool open, int newestKind)
+    {
+        var newest = CreateCapture() with { Kind = (CaptureMediaKind)newestKind };
+        var older = CreateCapture() with
+        {
+            Kind = newest.Kind == CaptureMediaKind.Image ? CaptureMediaKind.Video : CaptureMediaKind.Image,
+            ModifiedAtUtc = newest.ModifiedAtUtc.AddMinutes(-1),
+        };
+        var source = new TestCaptureSource((_, _) => [newest, older]);
+        using var catalog = new CaptureCatalog(source);
+        CaptureFile? executedCapture = null;
+        CommandResult Execute(CaptureFile capture)
+        {
+            executedCapture = capture;
+            return CommandResult.KeepOpen();
+        }
+
+        InvokableCommand command = open
+            ? new OpenLatestCaptureCommand(catalog, openCapture: Execute)
+            : new CopyLatestCaptureCommand(catalog, copyCapture: Execute);
+        await WaitUntilAsync(catalog, () => catalog.IsInitialized);
+
+        command.Invoke();
+
+        Assert.AreSame(newest, executedCapture);
+        Assert.AreEqual(1, source.ReadCount);
+    }
+
+    [TestMethod]
+    public async Task QuickCommandsDistinguishLoadingFromAnEmptyCatalog()
+    {
+        var releaseScan = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        using var catalog = new CaptureCatalog(new TestCaptureSource((_, cancellationToken) =>
+        {
+            releaseScan.Task.WaitAsync(cancellationToken).GetAwaiter().GetResult();
+            return [];
+        }));
+        static CommandResult UnexpectedAction(CaptureFile _) => throw new AssertFailedException("No capture should be opened or copied.");
+        (InvokableCommand Command, string EmptyMessage)[] commands =
+        [
+            (new CopyLatestCaptureCommand(catalog, copyCapture: UnexpectedAction), "No screenshots or screen recordings were found."),
+            (new OpenLatestCaptureCommand(catalog, openCapture: UnexpectedAction), "No screenshots or screen recordings were found."),
+            (new CopyLatestCaptureCommand(catalog, CaptureMediaKind.Image, UnexpectedAction), "No screenshots were found."),
+            (new CopyLatestCaptureCommand(catalog, CaptureMediaKind.Video, UnexpectedAction), "No screen recordings were found."),
+            (new OpenLatestCaptureCommand(catalog, CaptureMediaKind.Image, UnexpectedAction), "No screenshots were found."),
+            (new OpenLatestCaptureCommand(catalog, CaptureMediaKind.Video, UnexpectedAction), "No screen recordings were found."),
+        ];
+        try
+        {
+            foreach (var (command, _) in commands)
+            {
+                var toast = Assert.IsInstanceOfType<ToastArgs>(command.Invoke().Args);
+                Assert.AreEqual("Snipping Manager is still loading your captures.", toast.Message);
+            }
+
+            await WaitUntilAsync(catalog, () => catalog.IsInitialized, () => releaseScan.TrySetResult());
+
+            foreach (var (command, message) in commands)
+            {
+                var toast = Assert.IsInstanceOfType<ToastArgs>(command.Invoke().Args);
+                Assert.AreEqual(message, toast.Message);
+            }
+        }
+        finally
+        {
+            releaseScan.TrySetResult();
+        }
+    }
+
+    [TestMethod]
     public async Task RemoveUpdatesSnapshotAndLatestWithoutRescanning()
     {
         var newest = CreateCapture();

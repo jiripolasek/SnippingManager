@@ -12,12 +12,25 @@ Browse, organize, and share your screenshots and screen recordings from Command 
 ## Features
 
 - A gallery grouped by date, with the newest captures first and automatic updates as your folders change.
-- **Copy latest capture** for quick sharing, plus drag and drop into other apps.
+- Quick commands to copy or open the latest screenshot or recording, plus drag and drop into other apps.
 - Favorites, labels, and tags to keep captures organized.
 - Choose between opening captures in your default app or previewing them in Command Palette with a details pane. Recordings use still previews.
 - Search by filename, folder, label, tag, or date, with filters for capture type and organization.
 
-Open **Screenshots and recordings** in Command Palette to browse your captures, or run **Copy latest capture** directly.
+Open **Screenshots and recordings** in Command Palette to browse your captures, or run a quick command directly.
+
+## Quick commands
+
+| Command | Action |
+| --- | --- |
+| **Copy latest screenshot** | Copy the newest screenshot as an image and file, even if a recording is newer. |
+| **Copy latest recording** | Copy the newest screen recording as a file, even if a screenshot is newer. |
+| **Open latest screenshot** | Open the newest screenshot in your default app. |
+| **Open latest recording** | Open the newest screen recording in your default app. |
+| **Copy latest capture** | Copy whichever screenshot or recording is newest. |
+| **Open latest capture** | Open whichever screenshot or recording is newest in your default app. |
+
+Latest means the most recently modified matching file in the discovered capture folders. Quick commands use the current catalog when invoked, independently of gallery search and filters. They report when captures are still loading or when no matching type exists; they never substitute the other type. The open commands always use the default app; the gallery's opening preference is unchanged.
 
 ## Capture folders
 
