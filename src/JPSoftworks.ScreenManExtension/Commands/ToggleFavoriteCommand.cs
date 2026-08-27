@@ -18,7 +18,7 @@ internal sealed partial class ToggleFavoriteCommand : InvokableCommand
 
     public override CommandResult Invoke()
     {
-        var isFavorite = this._metadataStore.ToggleFavorite(this._capture.FullPath);
+        var isFavorite = this._metadataStore.ToggleFavorite(this._capture.FullPath, this._capture.FileIdentity);
         return CommandResult.ShowToast(new ToastArgs
         {
             Message = isFavorite

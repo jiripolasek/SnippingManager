@@ -141,6 +141,7 @@ internal sealed partial class CaptureListItemCache : IDisposable
             return StringComparer.OrdinalIgnoreCase.Equals(this.Capture.FullPath, capture.FullPath)
                 && this.Capture.ModifiedAtUtc == capture.ModifiedAtUtc
                 && this.Capture.SizeInBytes == capture.SizeInBytes
+                && StringComparer.Ordinal.Equals(this.Capture.FileIdentity, capture.FileIdentity)
                 && this.Capture.Kind == capture.Kind;
         }
 

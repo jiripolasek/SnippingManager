@@ -22,7 +22,7 @@ public sealed partial class ScreenManCommandsProvider : CommandProvider
         this.Icon = Icons.Main;
         this.Settings = this._settingsManager.Settings;
 
-        this._catalog = new(new FolderCaptureSource(this._settingsManager));
+        this._catalog = new(new FolderCaptureSource(this._settingsManager), this._metadataStore);
         this._page = new(this._catalog, this._metadataStore, this._settingsManager);
         this._commands =
         [

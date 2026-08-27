@@ -5,6 +5,7 @@ internal sealed partial class CaptureCatalog : IDisposable
     private static readonly TimeSpan RefreshDebounceInterval = TimeSpan.FromMilliseconds(400);
 
     private readonly ICaptureSource _source;
+    private readonly CaptureMetadataStore? _metadataStore;
     private readonly Lock _syncRoot = new();
     private readonly Lock _lifecycleLock = new();
     private readonly System.Timers.Timer _reloadTimer = new(RefreshDebounceInterval) { AutoReset = false };
@@ -17,9 +18,10 @@ internal sealed partial class CaptureCatalog : IDisposable
     private bool _refreshPending;
     private bool _isDisposed;
 
-    internal CaptureCatalog(ICaptureSource source)
+    internal CaptureCatalog(ICaptureSource source, CaptureMetadataStore? metadataStore = null)
     {
         this._source = source ?? throw new ArgumentNullException(nameof(source));
+        this._metadataStore = metadataStore;
         this._source.Changed += this.OnSourceChanged;
         this._reloadTimer.Elapsed += this.OnReloadTimerElapsed;
         _ = Task.Run(this.InitialLoadAsync, this._cancellationTokenSource.Token);
@@ -174,6 +176,8 @@ internal sealed partial class CaptureCatalog : IDisposable
         try
         {
             var next = this._source.GetCaptures(this._cancellationTokenSource.Token).ToList();
+            this._cancellationTokenSource.Token.ThrowIfCancellationRequested();
+            this._metadataStore?.Reconcile(next);
             bool changed;
             lock (this._lifecycleLock)
             {

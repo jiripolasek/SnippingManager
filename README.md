@@ -34,7 +34,9 @@ Supported image formats: PNG, JPEG, GIF, BMP, WebP, TIFF, HEIC/HEIF, and AVIF. S
 
 Labels, tags, and favorites are stored locally, separately from your media. No capture contents or metadata leave the machine.
 
-Metadata is tied to file paths, so moving or renaming a capture does not carry its metadata to the new path.
+On filesystems with stable Windows file IDs, such as NTFS, metadata follows file and folder renames and moves on the same volume, including across restarts. The destination must be in a configured capture folder to appear in the gallery. Copies and moves to another volume are treated as separate files.
+
+Existing metadata is upgraded when its capture is next discovered at the original path. If a file ID is unavailable, metadata remains tied to the path; Snipping Manager does not guess matches from names, sizes, or dates.
 
 ## License
 

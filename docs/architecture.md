@@ -43,4 +43,14 @@ Thumbnail work is independently limited to four concurrent requests. Cached list
 - `CaptureMetadataStore` persists favorites, labels, and tags without writing into capture files.
 - `CaptureSearch` is the single matching point for filenames, paths, favorites, labels, tags, type terms, and date terms.
 
+## Metadata identity
+
+Background discovery reads the Windows volume serial number, file ID, and creation time into `CaptureFile.FileIdentity`. These attribute queries do not read or modify media contents. Creation time helps distinguish a later file if a deleted file's ID is reused. See Microsoft's [FILE_ID_INFO contract](https://learn.microsoft.com/en-us/windows/win32/api/winbase/ns-winbase-file_id_info).
+
+`CaptureMetadataStore` keeps identity-based records in `identifiedItems` alongside the legacy path-based `items` dictionary in the same JSON file. The catalog reconciles the discovered identities and upgrades matching legacy entries before publishing a new snapshot. Unobserved legacy entries are retained. Multiple paths identifying the same file share metadata; during legacy migration an existing identity label takes precedence, while tags and favorites are merged.
+
+Page lookups remain in memory. Capture commands and metadata editors carry the capture's identity so an editor opened before a rename still targets the original file if its old path is reused. Renames need no metadata rewrite once a file is identified, and a new scan reconnects renamed files after a restart. Watcher notifications include directory changes so renaming a parent folder also refreshes the catalog.
+
+This does not identify copies or moves to another volume. Filesystems without stable IDs retain path-based behavior, and legacy metadata cannot be recovered by identity if the file moved before its first identity-aware scan.
+
 A future analysis feature should enrich the cached capture model or a separate local index, then extend `CaptureSearch`. It should not put image decoding or model inference in `GetItems()` or on the host UI thread.

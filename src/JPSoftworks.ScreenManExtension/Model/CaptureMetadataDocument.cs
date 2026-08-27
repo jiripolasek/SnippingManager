@@ -5,6 +5,8 @@ namespace JPSoftworks.ScreenManExtension.Model;
 internal sealed class CaptureMetadataDocument
 {
     public Dictionary<string, CaptureMetadataEntry> Items { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+
+    public Dictionary<string, CaptureMetadataEntry> IdentifiedItems { get; set; } = new(StringComparer.Ordinal);
 }
 
 internal sealed class CaptureMetadataEntry

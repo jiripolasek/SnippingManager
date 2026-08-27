@@ -61,6 +61,11 @@ internal sealed partial class FolderCaptureSource : ICaptureSource
         return captures
             .OrderByDescending(static capture => capture.ModifiedAtUtc)
             .Take(MaximumCaptureCount)
+            .Select(capture =>
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                return capture with { FileIdentity = CaptureFileIdentity.TryGet(capture.FullPath) };
+            })
             .ToArray();
     }
 
@@ -175,7 +180,10 @@ internal sealed partial class FolderCaptureSource : ICaptureSource
 
     private void OnFileSystemChanged(object sender, FileSystemEventArgs e)
     {
-        if (CaptureFileTypes.TryGetKind(e.FullPath, out _) || e.ChangeType == WatcherChangeTypes.Deleted)
+        if (e is RenamedEventArgs ||
+            CaptureFileTypes.TryGetKind(e.FullPath, out _) ||
+            e.ChangeType == WatcherChangeTypes.Deleted ||
+            Directory.Exists(e.FullPath))
         {
             this.RaiseChanged();
         }

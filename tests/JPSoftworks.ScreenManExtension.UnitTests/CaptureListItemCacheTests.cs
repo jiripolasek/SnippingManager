@@ -61,11 +61,17 @@ public sealed class CaptureListItemCacheTests
             StringAssert.Contains(form.TemplateJson, "work");
 
             var replaced = cache.GetOrCreate(
-                capture with { SizeInBytes = 456 },
+                capture with { FileIdentity = "replacement-file" },
                 store.Get(capturePath),
                 store,
                 thumbnailCancellationToken: cancellation.Token);
             Assert.AreNotSame(original, replaced);
+            var resized = cache.GetOrCreate(
+                capture with { FileIdentity = "replacement-file", SizeInBytes = 456 },
+                store.Get(capturePath),
+                store,
+                thumbnailCancellationToken: cancellation.Token);
+            Assert.AreNotSame(replaced, resized);
             Assert.AreEqual(1, cache.Count);
         }
         finally

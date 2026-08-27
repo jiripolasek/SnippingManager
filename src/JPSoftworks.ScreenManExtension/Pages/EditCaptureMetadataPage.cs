@@ -31,7 +31,7 @@ internal sealed partial class EditCaptureMetadataPage : ContentPage
         {
             this._capture = capture;
             this._store = store;
-            this.TemplateJson = CreateTemplate(store.Get(capture.FullPath));
+            this.TemplateJson = CreateTemplate(store.Get(capture.FullPath, capture.FileIdentity));
             this.DataJson = string.Empty;
             this.StateJson = string.Empty;
         }
@@ -48,7 +48,7 @@ internal sealed partial class EditCaptureMetadataPage : ContentPage
                 var tags = (tagsText ?? string.Empty).Split(
                     [',', ';', '\r', '\n'],
                     StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-                this._store.Update(this._capture.FullPath, label, tags);
+                this._store.Update(this._capture.FullPath, label, tags, this._capture.FileIdentity);
                 return CommandResult.GoBack();
             }
             catch (Exception ex) when (ex is System.Text.Json.JsonException or InvalidOperationException)

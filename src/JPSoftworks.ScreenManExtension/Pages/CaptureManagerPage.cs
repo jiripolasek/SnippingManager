@@ -142,7 +142,7 @@ internal sealed partial class CaptureManagerPage : DynamicListPage, IDisposable
 
             var item = this._itemCache.GetOrCreate(
                 capture,
-                this._metadataStore.Get(capture.FullPath),
+                this._metadataStore.Get(capture.FullPath, capture.FileIdentity),
                 this._metadataStore,
                 onDeleted: this._catalog.Remove,
                 thumbnailCancellationToken: CancellationToken.None); // Cached thumbnails outlive this refresh.
@@ -207,7 +207,7 @@ internal sealed partial class CaptureManagerPage : DynamicListPage, IDisposable
         var captures = allCaptures
             .Where(capture =>
             {
-                var metadata = this._metadataStore.Get(capture.FullPath);
+                var metadata = this._metadataStore.Get(capture.FullPath, capture.FileIdentity);
                 return CaptureSearch.MatchesFilter(capture, metadata, filterId) &&
                        CaptureSearch.Matches(capture, metadata, query);
             })
