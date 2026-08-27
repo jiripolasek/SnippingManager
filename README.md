@@ -19,6 +19,12 @@ Browse, organize, and share your screenshots and screen recordings from Command 
 
 Open **Screenshots and recordings** in Command Palette to browse your captures, or run a quick command directly.
 
+<div align="center">
+
+<img src="./art/Screenshot-1.png" alt="Screenshot">
+
+</div>
+
 ## Quick commands
 
 | Command | Action |
